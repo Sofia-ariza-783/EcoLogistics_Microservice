@@ -1,0 +1,30 @@
+"""Domain-specific exceptions for the Carbon Tracker service.
+
+Kept free of any web-framework dependency (no FastAPI/Pydantic imports)
+so the domain layer remains reusable outside an HTTP context (batch
+jobs, other services, tests).
+"""
+
+from __future__ import annotations
+
+
+class EmissionsDomainError(Exception):
+    """Base class for all business-rule violations in the emissions domain."""
+
+
+class InvalidVehicleTypeError(EmissionsDomainError):
+    """Raised when the provided vehicle type is not a supported VehicleType."""
+
+    def __init__(self, value: object) -> None:
+        self.value = value
+        super().__init__(f"Tipo de vehículo no soportado: {value!r}")
+
+
+class InvalidEmissionInputError(EmissionsDomainError):
+    """Raised when a numeric emissions input violates a domain business rule."""
+
+    def __init__(self, field_name: str, value: object, reason: str) -> None:
+        self.field_name = field_name
+        self.value = value
+        self.reason = reason
+        super().__init__(f"Campo '{field_name}' inválido ({value!r}): {reason}")
