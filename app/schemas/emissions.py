@@ -20,6 +20,13 @@ from app.domain.vehicle_type import VehicleType
 # (e.g. a stray extra digit) without encoding a specific business policy.
 _MAX_CARGO_WEIGHT_TONNES: float = 200.0
 _MAX_DISTANCE_KM: float = 20_000.0
+# efficiency_factor and emission_factor originally had no upper bound, which
+# let astronomically large values overflow the calculation to `inf` (see
+# EmissionsOverflowError). These ceilings are deliberately generous relative
+# to any real-world value (e.g. diesel ~2.68 kgCO2/L, grid electricity well
+# under 1.5 kgCO2/kWh) so they only ever catch orders-of-magnitude mistakes.
+_MAX_EFFICIENCY_FACTOR: float = 10.0
+_MAX_EMISSION_FACTOR: float = 50.0
 
 
 class EmissionCalculationRequest(BaseModel):
@@ -46,6 +53,7 @@ class EmissionCalculationRequest(BaseModel):
     efficiency_factor: float = Field(
         ...,
         gt=0,
+        le=_MAX_EFFICIENCY_FACTOR,
         description=(
             "Factor de eficiencia energética o de combustible del vehículo, "
             "en unidades de energía/combustible por tonelada-kilómetro "
@@ -55,6 +63,7 @@ class EmissionCalculationRequest(BaseModel):
     emission_factor: float = Field(
         ...,
         ge=0,
+        le=_MAX_EMISSION_FACTOR,
         description=(
             "Factor de emisión asociado al tipo de vehículo, en kg de CO2 "
             "por unidad de energía/combustible consumida (ej. kgCO2/L, kgCO2/kWh)."

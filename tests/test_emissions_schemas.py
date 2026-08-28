@@ -44,10 +44,19 @@ def test_rejects_unsupported_vehicle_type() -> None:
         ("efficiency_factor", 0),
         ("efficiency_factor", -0.5),
         ("emission_factor", -0.1),
+        ("efficiency_factor", 10.01),  # sobre la cota superior (S1)
+        ("emission_factor", 50.01),  # sobre la cota superior (S1)
     ],
 )
 def test_rejects_out_of_range_numeric_fields(field: str, value: float) -> None:
     payload = {**VALID_PAYLOAD, field: value}
+    with pytest.raises(ValidationError):
+        EmissionCalculationRequest(**payload)
+
+
+def test_rejects_vehicle_type_string_exceeding_max_length() -> None:
+    """Refinamiento post-revisión (hallazgo S2)."""
+    payload = {**VALID_PAYLOAD, "vehicle_type": "Diésel" + "!" * 100}
     with pytest.raises(ValidationError):
         EmissionCalculationRequest(**payload)
 

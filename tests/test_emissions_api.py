@@ -138,6 +138,17 @@ class TestRequiredEdgeCases:
             assert response.status_code != 500
 
 
+def test_calculate_emissions_rejects_efficiency_factor_above_ceiling() -> None:
+    """Refinamiento post-revisión (hallazgo S1): antes de este fix, un valor
+    astronómico en efficiency_factor/emission_factor podía producir
+    ``"emissions_kg": Infinity`` (JSON inválido) en lugar de un 422."""
+    payload = {**VALID_PAYLOAD, "efficiency_factor": 1e300, "emission_factor": 1e300}
+    response = client.post("/emissions/calculate", json=payload)
+
+    assert response.status_code == 422
+    assert "Infinity" not in response.text
+
+
 def test_calculate_emissions_allows_zero_emission_factor() -> None:
     payload = {**VALID_PAYLOAD, "emission_factor": 0.0}
     response = client.post("/emissions/calculate", json=payload)

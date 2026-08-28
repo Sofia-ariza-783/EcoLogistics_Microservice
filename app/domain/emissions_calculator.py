@@ -11,7 +11,11 @@ import math
 from dataclasses import dataclass
 from typing import Final
 
-from app.domain.exceptions import InvalidEmissionInputError, InvalidVehicleTypeError
+from app.domain.exceptions import (
+    EmissionsOverflowError,
+    InvalidEmissionInputError,
+    InvalidVehicleTypeError,
+)
 from app.domain.vehicle_type import VehicleType
 
 logger = logging.getLogger(__name__)
@@ -104,6 +108,14 @@ def calculate_co2_emissions(calculation_input: EmissionCalculationInput) -> floa
     Returns:
         Total CO2 emissions in kilograms, rounded to a fixed precision to
         avoid exposing floating-point noise to callers.
+
+    Raises:
+        EmissionsOverflowError: if the four (individually valid, finite)
+            factors combine into a product that overflows to infinity. This
+            can only happen with astronomically large inputs, but each
+            factor is validated independently in ``EmissionCalculationInput``
+            and therefore cannot, by itself, rule this out — the product
+            must be checked too.
     """
     raw_emissions_kg = (
         calculation_input.efficiency_factor
@@ -111,6 +123,10 @@ def calculate_co2_emissions(calculation_input: EmissionCalculationInput) -> floa
         * calculation_input.distance_km
         * calculation_input.emission_factor
     )
+
+    if not math.isfinite(raw_emissions_kg):
+        raise EmissionsOverflowError()
+
     emissions_kg = round(raw_emissions_kg, _EMISSIONS_PRECISION_DECIMALS)
 
     logger.info(

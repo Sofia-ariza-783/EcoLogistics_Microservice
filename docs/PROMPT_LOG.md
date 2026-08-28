@@ -181,20 +181,62 @@ Revisión independiente con hallazgos concretos, no genéricos:
   externas (DIP), agregación de flota, alineación con ISO 14083, migración a
   `Decimal` si los números alimentan reportes de cumplimiento.
 
-**Evidencia de evolución:** ver *Backlog de hallazgos pendientes de
-corrección* más abajo — a la fecha de este documento, los hallazgos **no han
-sido aplicados al código**, quedan documentados como trabajo futuro explícito.
+**Evidencia de evolución:** los hallazgos quedaron priorizados en un backlog
+(ver tabla más abajo). Los que representaban un defecto real de robustez o
+una mejora de rendimiento de bajo riesgo se cerraron de inmediato como
+continuación directa de esta misma revisión (ver siguiente apartado); los que
+eran decisiones de infraestructura/despliegue (S3, S5) o de tooling de
+dependencias (S4) quedaron fuera de alcance del código del microservicio en
+sí y se mantienen documentados como trabajo futuro.
+
+### Fase 6 (continuación) — Refinamiento Post-Revisión
+
+**Prompt principal (resumen):**
+> "Realiza el proceso de refinamiento y documéntalo como si se hubiera
+> realizado en el paso adecuado, si es que es necesario. Los demás puntos
+> ignóralos por ahora."
+
+**Criterio de priorización aplicado:** de los 9 hallazgos (S1–S5, P1–P4), se
+corrigieron los que eran defectos reales del código del microservicio y de
+bajo riesgo de implementar; se dejaron fuera los que eran decisiones de
+despliegue/infraestructura (S3, S5), de tooling externo al código (S4) o de
+prioridad menor (P3, P4 ya justificado como acierto).
+
+**Respuesta clave del LLM — cambios aplicados:**
+
+| ID | Corrección aplicada | Archivo(s) |
+|---|---|---|
+| S1 | Nueva excepción `EmissionsOverflowError`; `calculate_co2_emissions` verifica `math.isfinite()` sobre el resultado antes de redondear, sin importar qué combinación de factores lo produjo. Complementado con cotas superiores (`le=10.0` / `le=50.0`) en `efficiency_factor`/`emission_factor` del schema, simétricas a las ya existentes en `cargo_weight_tonnes`/`distance_km`. | `app/domain/exceptions.py`, `app/domain/emissions_calculator.py`, `app/schemas/emissions.py` |
+| S2 | `VehicleType.from_input` rechaza strings de más de 50 caracteres antes de ejecutar la normalización Unicode. | `app/domain/vehicle_type.py` |
+| P1 | El endpoint `POST /emissions/calculate` pasó de `def` a `async def`: al no haber I/O bloqueante, esto evita el despacho innecesario al threadpool acotado de Starlette. | `app/api/routes/emissions.py` |
+
+**Pruebas agregadas para evidenciar cada corrección:**
+- `TestOverflowGuard` (dominio): valores astronómicos disparan
+  `EmissionsOverflowError`; un envío grande pero realista (150 t, 15 000 km)
+  sigue calculando con normalidad (evita sobre-corregir).
+- `test_rejects_out_of_range_numeric_fields` (schema): casos parametrizados
+  para las nuevas cotas superiores.
+- `test_rejects_vehicle_type_string_exceeding_max_length` (schema).
+- `test_calculate_emissions_rejects_efficiency_factor_above_ceiling` (API):
+  confirma 422 y que la respuesta nunca contiene el literal `Infinity`.
+
+**Resultado:** de 84 a **90 tests, todos en verde**.
+
+**Explícitamente fuera de alcance en este refinamiento** (a petición
+explícita, no por descuido): S3 (límite de body a nivel ASGI), S4 (lockfile
+de dependencias con hashes), S5 (auth/rate-limiting) y P3 (logging
+configurable por entorno). Se mantienen documentados como backlog abierto.
 
 ---
 
-## Backlog de hallazgos pendientes de corrección
+## Backlog de hallazgos
 
 | ID | Hallazgo | Estado |
 |---|---|---|
-| S1 | Sin cota superior en `efficiency_factor`/`emission_factor` (riesgo de `Infinity` en la respuesta) | Pendiente |
-| S2 | Sin `max_length` en el string crudo de `vehicle_type` antes de normalizar | Pendiente |
-| S3 | Sin límite de tamaño de body a nivel de aplicación/ASGI | Pendiente (decisión de despliegue) |
-| S4 | `requirements.txt` sin lockfile con hashes | Pendiente |
-| S5 | Sin auth/rate-limiting documentado como decisión explícita | Pendiente (decisión de despliegue) |
-| P1 | Endpoint síncrono sin I/O real (candidato a `async def`) | Pendiente |
-| P3 | `logging.basicConfig()` no configurable por entorno | Pendiente |
+| S1 | Sin cota superior en `efficiency_factor`/`emission_factor` (riesgo de `Infinity` en la respuesta) | ✅ Corregido (Fase 6, continuación) |
+| S2 | Sin `max_length` en el string crudo de `vehicle_type` antes de normalizar | ✅ Corregido (Fase 6, continuación) |
+| P1 | Endpoint síncrono sin I/O real (candidato a `async def`) | ✅ Corregido (Fase 6, continuación) |
+| S3 | Sin límite de tamaño de body a nivel de aplicación/ASGI | Pendiente (decisión de despliegue, fuera de alcance) |
+| S4 | `requirements.txt` sin lockfile con hashes | Pendiente (fuera de alcance) |
+| S5 | Sin auth/rate-limiting documentado como decisión explícita | Pendiente (decisión de despliegue, fuera de alcance) |
+| P3 | `logging.basicConfig()` no configurable por entorno | Pendiente (fuera de alcance) |

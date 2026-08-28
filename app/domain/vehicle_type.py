@@ -5,6 +5,11 @@ from __future__ import annotations
 import unicodedata
 from enum import Enum
 
+# The longest real member value ("Eléctrico"/"Híbrido") is under 10 chars;
+# 50 is a generous ceiling to reject pathological inputs (e.g. a multi-MB
+# string) before spending CPU on Unicode normalization.
+_MAX_INPUT_LENGTH: int = 50
+
 
 class VehicleType(str, Enum):
     """Supported vehicle types for cargo transport emissions calculation.
@@ -43,6 +48,12 @@ class VehicleType(str, Enum):
 
         if not isinstance(raw_value, str) or not raw_value.strip():
             raise ValueError(f"Tipo de vehículo inválido: {raw_value!r}")
+
+        if len(raw_value) > _MAX_INPUT_LENGTH:
+            raise ValueError(
+                f"Tipo de vehículo inválido: excede la longitud máxima de "
+                f"{_MAX_INPUT_LENGTH} caracteres."
+            )
 
         normalized = _strip_accents(raw_value).strip().casefold()
         for member in cls:

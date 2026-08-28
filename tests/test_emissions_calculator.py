@@ -13,7 +13,11 @@ import math
 import pytest
 
 from app.domain.emissions_calculator import EmissionCalculationInput, calculate_co2_emissions
-from app.domain.exceptions import InvalidEmissionInputError, InvalidVehicleTypeError
+from app.domain.exceptions import (
+    EmissionsOverflowError,
+    InvalidEmissionInputError,
+    InvalidVehicleTypeError,
+)
 from app.domain.vehicle_type import VehicleType
 
 
@@ -185,6 +189,41 @@ class TestRequiredEdgeCases:
             _build_input(vehicle_type="Gasolina")
 
         assert "no soportado" in str(exc_info.value)
+
+
+class TestOverflowGuard:
+    """Refinamiento post-revisión (hallazgo S1): cada factor puede ser
+    individualmente positivo y finito y, aun así, su producto puede
+    desbordar a infinito. Este guard protege el resultado final
+    independientemente de qué cota superior (si alguna) haya aplicado el
+    caller antes de construir el input de dominio.
+    """
+
+    def test_astronomically_large_inputs_raise_overflow_error(self) -> None:
+        calculation_input = _build_input(
+            cargo_weight_tonnes=1e300,
+            distance_km=1e300,
+            efficiency_factor=1e300,
+            emission_factor=1e300,
+        )
+
+        with pytest.raises(EmissionsOverflowError):
+            calculate_co2_emissions(calculation_input)
+
+    def test_moderately_large_but_realistic_inputs_do_not_overflow(self) -> None:
+        # Guards against over-tightening: a legitimately large (if unusual)
+        # shipment must still calculate normally.
+        calculation_input = _build_input(
+            cargo_weight_tonnes=150.0,
+            distance_km=15_000.0,
+            efficiency_factor=0.05,
+            emission_factor=2.68,
+        )
+
+        result = calculate_co2_emissions(calculation_input)
+
+        assert math.isfinite(result)
+        assert result > 0
 
 
 class TestImmutability:

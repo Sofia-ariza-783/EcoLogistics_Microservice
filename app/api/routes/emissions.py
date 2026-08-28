@@ -18,7 +18,7 @@ _KG_PER_TONNE: float = 1000.0
     status_code=status.HTTP_200_OK,
     summary="Calcula las emisiones de CO2 de un trayecto de transporte de carga",
 )
-def calculate_emissions(request: EmissionCalculationRequest) -> EmissionCalculationResponse:
+async def calculate_emissions(request: EmissionCalculationRequest) -> EmissionCalculationResponse:
     """Calculate CO2 emissions for a single cargo transport trip.
 
     Pydantic has already validated the request's shape and ranges. This
@@ -26,6 +26,11 @@ def calculate_emissions(request: EmissionCalculationRequest) -> EmissionCalculat
     delegates the calculation; any remaining business-rule violation is
     raised as an ``EmissionsDomainError`` subclass and handled globally
     (see ``app.main``), keeping this route free of error-mapping logic.
+
+    Declared ``async def`` rather than a sync ``def``: the calculation is
+    pure CPU with no I/O, so there is nothing to await, but this avoids
+    Starlette dispatching every request to its bounded default threadpool
+    (a real bottleneck under high concurrency for work this cheap).
     """
     calculation_input = EmissionCalculationInput(
         vehicle_type=request.vehicle_type,

@@ -28,3 +28,21 @@ class InvalidEmissionInputError(EmissionsDomainError):
         self.value = value
         self.reason = reason
         super().__init__(f"Campo '{field_name}' inválido ({value!r}): {reason}")
+
+
+class EmissionsOverflowError(EmissionsDomainError):
+    """Raised when a (validated, finite) combination of inputs still produces
+    a non-finite result (overflow to +/- infinity).
+
+    Each individual field can pass ``InvalidEmissionInputError`` checks (be
+    positive and finite) and yet, multiplied together, exceed the range a
+    float can represent. This guard protects the domain regardless of the
+    caller, independently of any upper bound enforced upstream (e.g. by the
+    API schema).
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            "El cálculo produjo un resultado no finito (overflow). "
+            "Revise la magnitud de los factores de entrada."
+        )
